@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayVia Interactive Content Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Harmony -->
+    <!-- Application Structure Plan: A dashboard-style SPA. The top section displays key overall metrics (total posts, posts by pillar). Below this, interactive filter buttons allow users to select a 'Content Pillar'. The main content area consists of two parts: a visual summary (a donut chart showing content pillar distribution) and a dynamic grid of cards, where each card represents a scheduled post. Clicking a card opens a modal with full post details. This structure was chosen to provide an immediate high-level overview, facilitate easy exploration of specific content types through filtering, and offer detailed information on demand without cluttering the main view, making the 30-day plan much more digestible and actionable than a static table. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Content Pillar breakdown -> Goal: Understand content strategy mix -> Viz: Donut Chart (Chart.js) -> Interaction: Filters update chart, tooltips show details. -> Justification: Ideal for showing part-to-whole relationships.
+        - Report Info: Entire 30-day schedule -> Goal: Browse all planned content -> Viz: Grid of interactive cards (HTML/CSS/JS) -> Interaction: Click card to open a detailed modal. Click filters to narrow down the grid. -> Justification: Visually appealing, scannable, and scalable. Modals prevent UI clutter.
+        - Report Info: Individual post details -> Goal: View complete content for a single post -> Viz: Modal pop-up window -> Interaction: Open/close. -> Justification: Standard UI pattern for detailed views without leaving the page.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .modal {
+            transition: opacity 0.25s ease;
+        }
+        .modal-content {
+            transition: transform 0.25s ease;
+        }
+        .card-grid {
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div id="app" class="p-4 md:p-8">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900">PayVia Interactive Content Dashboard</h1>
+            <p class="text-slate-500 mt-2">Your 30-day social media plan at a glance.</p>
+        </header>
+
+        <main>
+            <section id="kpis" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            </section>
+
+            <section class="mb-8 bg-white p-4 sm:p-6 rounded-xl shadow-sm">
+                <div class="flex flex-wrap gap-2 justify-center" id="filters">
+                </div>
+            </section>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                <section class="lg:col-span-1 bg-white p-4 sm:p-6 rounded-xl shadow-sm">
+                    <h2 class="text-xl font-bold mb-4 text-center">Content Pillar Mix</h2>
+                    <p class="text-center text-slate-500 text-sm mb-4">This chart shows the strategic distribution of your content types across the 30-day plan. Hover over a segment to see the exact count.</p>
+                    <div class="chart-container relative mx-auto w-full max-w-sm h-72 md:h-80">
+                        <canvas id="pillarChart"></canvas>
+                    </div>
+                </section>
+                <section class="lg:col-span-2 bg-white p-4 sm:p-6 rounded-xl shadow-sm">
+                     <h2 class="text-xl font-bold mb-4 text-center">Post Schedule</h2>
+                     <p class="text-center text-slate-500 text-sm mb-4">This interactive grid displays all your planned posts. Use the filters above to explore different content types, and click on any card to view the complete post details.</p>
+                    <div id="post-grid" class="grid card-grid gap-4 max-h-[60vh] overflow-y-auto p-2">
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <div id="modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 opacity-0 pointer-events-none">
+        <div class="modal-content bg-white w-full max-w-2xl max-h-[90vh] rounded-xl shadow-lg transform scale-95 overflow-hidden flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 id="modal-title" class="text-xl font-bold">Post Details</h3>
+                <button id="modal-close" class="text-slate-500 hover:text-slate-800">&times;</button>
+            </div>
+            <div id="modal-body" class="p-6 overflow-y-auto">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const contentData = [
+                { day: 1, date: "Sat, June 28", pillar: "Product Showcase", title: "Welcome to PayVia: The Future of Your Business.", visual: "A sleek, 30-sec video montage of the POS in various settings (cafe, retail, etc).", copy_en: "Welcome to PayVia! We build the technology that powers Myanmar's businesses. From POS systems to custom software, we're here to help you grow.", copy_my: "PayVia မှ ကြိုဆိုပါတယ်။ ကျွန်ုပ်တို့သည် မြန်မာနိုင်ငံ၏ စီးပွားရေးလုပ်ငန်းများကို အားဖြည့်ပေးသည့် နည်းပညာကို တည်ဆောက်ပါသည်။ POS စနစ်များမှ စိတ်ကြိုက်ဆော့ဖ်ဝဲလ်များအထိ၊ သင့်လုပ်ငန်းတိုးတက်ရေးအတွက် ကျွန်ုပ်တို့ကူညီရန် အသင့်ရှိနေပါတယ်။", cta: "Learn More", hashtags: "#PayViaMyanmar #MyanmarBusiness #DigitalMyanmar #POSsystem" },
+                { day: 2, date: "Sun, June 29", pillar: "Problem / Solution", title: "Still Using Pen & Paper? There's a Better Way.", visual: "Side-by-side graphic: Messy notebook vs. Clean PayVia dashboard.", copy_en: "Tired of manual sales tracking and calculation errors? Upgrade to digital precision with PayVia. See all your sales data in one clean, simple view.", copy_my: "လက်နဲ့စာရင်းလိုက်ရေးပြီး တွက်ချက်မှားယွင်းမှုတွေကို ငြီးငွေ့နေပြီလား? PayVia ဖြင့် digital တိကျမှုသို့ အဆင့်မြှင့်ပါ။ သင်၏ အရောင်းဒေတာအားလုံးကို သန့်ရှင်းရှင်းလင်းသော နေရာတစ်ခုတည်းတွင် ကြည့်ရှုပါ။", cta: "Send Message for Demo", hashtags: "#PayViaSolution #SmartBusiness #MyanmarSME #EndOfErrors" },
+                { day: 3, date: "Mon, June 30", pillar: "Trust & Authority", title: "Client Spotlight: How \"The Corner Teashop\" Boosted Efficiency", visual: "Carousel: 1. Photo of the teashop. 2. Staff using POS. 3. Owner's quote graphic.", copy_en: "We're proud to help The Corner Teashop serve customers faster! With PayVia, they've cut down order times and can manage rush hour with a smile.", copy_my: "The Corner Teashop ကို ဖောက်သည်များအား ပိုမိုမြန်ဆန်စွာ ဝန်ဆောင်မှုပေးနိုင်ရန် ကူညီပေးရသည့်အတွက် ကျွန်ုပ်တို့ ဂုဏ်ယူပါသည်။ PayVia ဖြင့် order ချိန်ကို လျှော့ချနိုင်ပြီး အလုပ်များသည့်အချိန်များကို အပြုံးဖြင့် စီမံနိုင်သည်။", cta: "Read their story", hashtags: "#ClientSuccess #PayViaInAction #YangonCafe #HappyCustomers" },
+                { day: 4, date: "Tue, July 1", pillar: "Educational", title: "3 Reasons Your Business Needs to Accept QR Payments", visual: "Animated infographic showing QR code scanning and payment icons (KBZPay, etc.)", copy_en: "1. It's fast. 2. It's secure. 3. It's what your customers want. PayVia makes accepting all major QR payments effortless.", copy_my: "၁။ မြန်ဆန်တယ်။ ၂။ လုံခြုံတယ်။ ၃။ သင့်ဖောက်သည်တွေ လိုချင်တဲ့အရာဖြစ်တယ်။ PayVia သည် အဓိက QR payment အားလုံးကို အလွယ်တကူ လက်ခံနိုင်အောင် ပြုလုပ်ပေးသည်။", cta: "Get Started", hashtags: "#QRPayments #DigitalPayments #MyanmarFintech #CashlessSociety" },
+                { day: 5, date: "Wed, July 2", pillar: "Product Showcase", title: "Your Business, In Your Pocket: The PayVia Mobile App", visual: "Mockup of the owner's dashboard app on a smartphone screen.", copy_en: "Manage your business from anywhere. Check live sales, monitor inventory, and view reports on the go with our powerful companion app.", copy_my: "သင်၏လုပ်ငန်းကို ဘယ်နေရာကနေမဆို စီမံခန့်ခွဲပါ။ ကျွန်ုပ်တို့၏ အစွမ်းထက်သော app ဖြင့် သွားရင်းလာရင်း တိုက်ရိုက်အရောင်းကြည့်ရှုခြင်း၊ ကုန်ပစ္စည်းစာရင်းစစ်ဆေးခြင်းနှင့် report များကြည့်ရှုခြင်းတို့ကို ပြုလုပ်ပါ။", cta: "Comment \"APP\"", hashtags: "#MobilePOS #BusinessOnTheGo #PayViaApp #TechForBusiness" },
+                { day: 6, date: "Thu, July 3", pillar: "Engagement", title: "What's the BIGGEST challenge you face in your business?", visual: "A simple, bold text graphic with the question.", copy_en: "Let's talk! Is it managing stock, handling payments, or finding new customers? Share your challenges in the comments below!", copy_my: "စကားပြောကြရအောင်။ ကုန်ပစ္စည်းစီမံခန့်ခွဲခြင်း၊ ငွေပေးချေမှုများကိုင်တွယ်ခြင်း သို့မဟုတ် ဖောက်သည်အသစ်ရှာဖွေခြင်းလား? သင်၏စိန်ခေါ်မှုများကို comment မှာ မျှဝေပေးပါ။", cta: "Comment Below", hashtags: "#BusinessTalk #MyanmarEntrepreneurs #SMEChallenges #CommunityPost" },
+                { day: 7, date: "Fri, July 4", pillar: "Behind the Scenes", title: "Meet the Team: Our Lead Developer, Ko Aung!", visual: "Professional, friendly photo of Ko Aung at his desk.", copy_en: "This is the mind behind the code! Ko Aung ensures your PayVia system is fast, secure, and reliable. He loves solving complex problems for our clients.", copy_my: "ဒါကတော့ code တွေရဲ့နောက်ကွယ်က ဦးနှောက်ပါပဲ။ ကိုအောင်က သင်၏ PayVia စနစ်ကို မြန်ဆန်၊ လုံခြုံပြီး ယုံကြည်စိတ်ချရအောင် သေချာစေပါတယ်။ သူက ကျွန်ုပ်တို့၏ client များအတွက် ရှုပ်ထွေးသော ပြဿနာများကို ဖြေရှင်းရတာကို နှစ်သက်ပါတယ်။", cta: "Say Hi to Ko Aung!", hashtags: "#PayViaTeam #MeetTheTeam #MyanmarTech #DeveloperLife" },
+                { day: 8, date: "Sat, July 5", pillar: "Web/Software Showcase", title: "Your Website is Your Digital Front Door. Is it open?", visual: "Carousel showing 3 beautiful, responsive websites PayVia has built.", copy_en: "A great website builds trust and wins customers. We design professional websites that look amazing and work perfectly on any device.", copy_my: "ကောင်းမွန်သော website သည် ယုံကြည်မှုကို တည်ဆောက်ပြီး ဖောက်သည်များကို ဆွဲဆောင်နိုင်သည်။ ကျွန်ုပ်တို့သည် မည်သည့်စက်တွင်မဆို အံ့သြဖွယ်ကောင်းပြီး ကောင်းမွန်စွာအလုပ်လုပ်သော professional website များကို ဒီဇိုင်းဆွဲပေးပါသည်။", cta: "Get a Free Quote", hashtags: "#WebDesignMyanmar #ProfessionalWebsite #ECommerce #DigitalPresence" },
+                { day: 9, date: "Sun, July 6", pillar: "Problem / Solution", title: "\"Out of Stock\" Again? Never Lose a Sale.", visual: "Animated graphic showing a \"Low Stock Alert\" notification popping up on the POS.", copy_en: "PayVia's inventory management automatically alerts you when items are running low, so you can reorder in time and never disappoint a customer.", copy_my: "PayVia ၏ ကုန်ပစ္စည်းစီမံခန့်ခွဲမှုစနစ်က ပစ္စည်းများ နည်းပါးလာသည့်အခါ သင့်အား အလိုအလျောက် သတိပေးသောကြောင့် အချိန်မီ ပြန်လည်မှာယူနိုင်ပြီး ဖောက်သည်ကို ဘယ်တော့မှ စိတ်မပျက်စေရပါ။", cta: "Learn More", hashtags: "#InventoryManagement #StockControl #RetailTips #NeverOutOfStock" },
+                { day: 10, date: "Mon, July 7", pillar: "Educational", title: "Understanding Your Sales Data: From Clicks to Customers", visual: "Screenshot of a clean, easy-to-read sales report from PayVia.", copy_en: "Which products are your bestsellers? What are your busiest hours? PayVia turns your sales data into powerful insights for smarter decisions.", copy_my: "ဘယ်ကုန်ပစ္စည်းတွေက အရောင်းရဆုံးလဲ? ဘယ်အချိန်တွေက အလုပ်အများဆုံးလဲ? PayVia က သင့်အရောင်းဒေတာကို ပိုမိုစမတ်ကျသော ဆုံးဖြတ်ချက်များအတွက် အစွမ်းထက်သော ထိုးထွင်းသိမြင်မှုများအဖြစ် ပြောင်းလဲပေးသည်။", cta: "Unlock Your Data", hashtags: "#DataDriven #BusinessAnalytics #SalesReports #SmarterSelling" },
+                { day: 11, date: "Tue, July 8", pillar: "Trust & Authority", title: "MYTH: \"POS Systems are too complicated for my staff.\"", visual: "A \"Myth vs. Fact\" graphic. Myth side is complex, Fact side is a simple icon.", copy_en: "FACT: PayVia is designed to be intuitive and easy to learn. We provide full training and support to get your team up and running in no time!", copy_my: "FACT: PayVia ကို အလိုလိုသိနိုင်ပြီး သင်ယူရလွယ်ကူအောင် ဒီဇိုင်းထုတ်ထားပါတယ်။ သင့်အဖွဲ့ကို အချိန်တိုအတွင်း အဆင်သင့်ဖြစ်စေရန် ကျွန်ုပ်တို့က လေ့ကျင့်မှုအပြည့်အဝနှင့် ပံ့ပိုးမှုပေးပါသည်။", cta: "Book a Training", hashtags: "#POSMythbusters #EasyToUse #TechSupport #UserFriendly" },
+                { day: 12, date: "Wed, July 9", pillar: "Product Showcase", title: "More Than a POS: We Build Custom Software Solutions.", visual: "A flowchart graphic showing a client's problem leading to a custom software solution.", copy_en: "Have a unique business challenge? We develop custom software—from logistics management to booking systems—built specifically for your needs.", copy_my: "သင့်မှာ ထူးခြားတဲ့ စီးပွားရေးစိန်ခေါ်မှုရှိပါသလား? ကျွန်ုပ်တို့သည် သင့်လိုအပ်ချက်အတွက် အထူးတည်ဆောက်ထားသော logistics management မှ booking systems အထိ စိတ်ကြိုက်ဆော့ဖ်ဝဲလ်များကို တီထွင်ပေးပါသည်။", cta: "Tell Us Your Problem", hashtags: "#SoftwareDevelopment #CustomSoftware #MyanmarTech #ProblemSolved" },
+                { day: 13, date: "Thu, July 10", pillar: "Engagement", title: "What's ONE feature you wish your current payment system had?", visual: "A question mark graphic with icons around it (loyalty, reports, etc).", copy_en: "Is it a customer loyalty program? Better reporting? Integration with your accounting software? We're listening!", copy_my: "ဖောက်သည် loyalty အစီအစဉ်လား? ပိုမိုကောင်းမွန်သော reporting လား? သင်၏ စာရင်းကိုင်ဆော့ဖ်ဝဲလ်နှင့် ချိတ်ဆက်ခြင်းလား? ကျွန်ုပ်တို့ နားထောင်နေပါတယ်!", cta: "Share Your Ideas", hashtags: "#FeedbackFriday #BusinessNeeds #FeatureRequest #CustomerVoice" },
+                { day: 14, date: "Fri, July 11", pillar: "Case Study", title: "How We Built a Scalable E-commerce Platform for \"Myanmar Crafts\"", visual: "Blog-style image with the title. Link to a full case study on your site.", copy_en: "From a small Facebook page to a nationwide online store. Read the full story of how we helped Myanmar Crafts build their digital empire.", copy_my: "Facebook page သေးသေးလေးမှ တစ်နိုင်ငံလုံးရှိ online store အထိ။ Myanmar Crafts ကို သူတို့ရဲ့ digital အင်ပါယာတည်ဆောက်ရာတွင် ကျွန်ုပ်တို့ ဘယ်လိုကူညီခဲ့တယ်ဆိုတဲ့ ဇာတ်လမ်းအပြည့်အစုံကို ဖတ်ရှုပါ။", cta: "Read Case Study", hashtags: "#CaseStudy #EcommerceSuccess #DigitalTransformation #MyanmarMade" },
+                { day: 15, date: "Sat, July 12", pillar: "Product Showcase", title: "Loyalty Made Easy: Keep Your Customers Coming Back.", visual: "Short video showing how to add a customer to the loyalty program on the POS.", copy_en: "Reward your best customers and turn new ones into regulars. PayVia's built-in loyalty program is simple to set up and even easier to use.", copy_my: "သင်၏ အကောင်းဆုံးဖောက်သည်များကို ဆုချပြီး အသစ်များကို ပုံမှန်ဖောက်သည်များအဖြစ် ပြောင်းလဲလိုက်ပါ။ PayVia ၏ built-in loyalty အစီအစဉ်သည် စနစ်ထည့်သွင်းရန် ရိုးရှင်းပြီး အသုံးပြုရန် ပို၍လွယ်ကူသည်။", cta: "Start a Program", hashtags: "#CustomerLoyalty #RepeatBusiness #MarketingTips #GrowYourBusiness" },
+                { day: 16, date: "Sun, July 13", pillar: "Problem / Solution", title: "End-of-Day Closing driving you crazy? Automate it!", visual: "Animation showing a manual, messy closing process transforming into a single tap.", copy_en: "One tap. That's all it takes to close your day with PayVia. All your numbers are automatically calculated and your reports are ready instantly.", copy_my: "တစ်ချက်နှိပ်ရုံပါပဲ။ PayVia ဖြင့် သင့်တစ်နေ့တာကို ပိတ်ရန် လိုအပ်သမျှပါပဲ။ သင်၏ နံပါတ်များအားလုံးကို အလိုအလျောက် တွက်ချက်ပြီး သင်၏ report များက ချက်ချင်းအသင့်ဖြစ်နေပါပြီ။", cta: "Simplify Your Day", hashtags: "#BusinessAutomation #WorkSmarter #Efficiency #SaveTime" },
+                { day: 17, date: "Mon, July 14", pillar: "Educational", title: "What is Cloud-Based POS? (And Why You Need It)", visual: "Simple graphic explaining cloud vs. traditional server.", copy_en: "Access your data anytime, anywhere. A cloud POS means your business information is secure, backed up, and always available, even if your device fails.", copy_my: "သင်၏ဒေတာကို အချိန်မရွေး၊ နေရာမရွေး ဝင်ရောက်ကြည့်ရှုပါ။ cloud POS ဆိုသည်မှာ သင်၏ စက်ပစ္စည်းပျက်သွားလျှင်ပင် သင်၏ စီးပွားရေးအချက်အလက်များက လုံခြုံ၊ အရန်သိမ်းဆည်းထားပြီး အမြဲတမ်းရရှိနိုင်သည်ဟု အဓိပ္ပာယ်ရသည်။", cta: "Go to the Cloud", hashtags: "#CloudPOS #TechExplained #FutureProof #BusinessContinuity" },
+                { day: 18, date: "Tue, July 15", pillar: "Trust & Authority", title: "Security You Can Trust: How We Protect Your Data.", visual: "A graphic with icons for encryption, secure servers, and data privacy.", copy_en: "Your business and customer data are your most valuable assets. We use bank-level security to ensure every transaction is encrypted and protected.", copy_my: "သင်၏ စီးပွားရေးနှင့် ဖောက်သည်ဒေတာများက သင်၏ အတန်ဖိုးအရှိဆုံး ပိုင်ဆိုင်မှုများဖြစ်ပါသည်။ ကျွန်ုပ်တို့သည် ငွေပေးငွေယူတိုင်းကို encrypt လုပ်ပြီး ကာကွယ်ထားကြောင်း သေချာစေရန် bank-level security ကို အသုံးပြုပါသည်။", cta: "Learn About Security", hashtags: "#DataSecurity #Cybersecurity #TrustPayVia #PrivacyMatters" },
+                { day: 19, date: "Wed, July 16", pillar: "Web/Software Showcase", title: "From Idea to App: Our Custom Software Development Process", visual: "A simple 5-step infographic: 1. Discovery 2. Design 3. Develop 4. Deploy 5. Support", copy_en: "Got a great idea for an app? We can make it a reality. Our transparent process keeps you involved from the first sketch to the final launch.", copy_my: "app အတွက် ကောင်းမွန်တဲ့ idea ရှိပါသလား? ကျွန်ုပ်တို့က အမှန်တကယ်ဖြစ်လာအောင် လုပ်ပေးနိုင်ပါတယ်။ ကျွန်ုပ်တို့၏ ပွင့်လင်းမြင်သာသော လုပ်ငန်းစဉ်က သင့်အား ပထမဆုံး ပုံကြမ်းမှ နောက်ဆုံး launch အထိ ပါဝင်စေပါသည်။", cta: "Build Your App", hashtags: "#AppDevelopment #FromIdeaToApp #TechPartner #InnovationInMyanmar" },
+                { day: 20, date: "Thu, July 17", pillar: "Engagement", title: "Show Us Your Workspace! Post a photo of your shop/cafe.", visual: "A collage of different local business types.", copy_en: "We love seeing Myanmar's businesses in action! Share a picture of your business in the comments. We'll feature our favorites in our Story!", copy_my: "မြန်မာနိုင်ငံ၏ စီးပွားရေးလုပ်ငန်းများကို အလုပ်လုပ်နေတာကို မြင်ရတာကို ကျွန်ုပ်တို့ နှစ်သက်ပါတယ်။ comment မှာ သင့်လုပ်ငန်းရဲ့ ဓာတ်ပုံတစ်ပုံကို မျှဝေပေးပါ။ ကျွန်ုပ်တို့ အကြိုက်ဆုံးများကို ကျွန်ုပ်တို့၏ Story တွင် ဖော်ပြပေးပါမည်။", cta: "Share Your Photo", hashtags: "#MyanmarShops #ShopLocal #CommunityLove #WorkspaceGoals" },
+                { day: 21, date: "Fri, July 18", pillar: "Special Offer", title: "LIMITED TIME: Get FREE On-site Setup & Training!", visual: "A bold, urgent-looking graphic with the offer details.", copy_en: "Ready to upgrade? Sign up for a PayVia POS system this month and our team will provide complete on-site setup and staff training for FREE. (Yangon only)", copy_my: "အဆင့်မြှင့်တင်ရန် အသင့်ဖြစ်ပြီလား? ယခုလတွင် PayVia POS စနစ်အတွက် စာရင်းသွင်းပြီး ကျွန်ုပ်တို့၏အဖွဲ့က site-တွင် တပ်ဆင်ခြင်းနှင့် ဝန်ထမ်းလေ့ကျင့်မှုကို အခမဲ့ ပံ့ပိုးပေးပါမည်။ (ရန်ကုန်မြို့အတွက်သာ)", cta: "Claim Your Offer", hashtags: "#SpecialOffer #FreeSetup #LimitedTime #POSDeal" },
+                { day: 22, date: "Sat, July 19", pillar: "Problem / Solution", title: "Managing Multiple Locations? We've Got You Covered.", visual: "Animation showing a map with several branches, all data feeding into one dashboard.", copy_en: "See sales, inventory, and employee performance across all your branches from a single master account. PayVia makes managing your empire easy.", copy_my: "သင်၏ ဘဏ်ခွဲများအားလုံးမှ အရောင်း၊ ကုန်ပစ္စည်းစာရင်းနှင့် ဝန်ထမ်းစွမ်းဆောင်ရည်ကို master account တစ်ခုတည်းမှ ကြည့်ရှုပါ။ PayVia သည် သင်၏ အင်ပါယာကို စီမံခန့်ခွဲရန် လွယ်ကူစေသည်။", cta: "Manage Your Branches", hashtags: "#MultiLocation #BusinessGrowth #ChainStores #CentralizedManagement" },
+                { day: 23, date: "Sun, July 20", pillar: "Trust & Authority", title: "Why Choose a Local Tech Partner?", visual: "Graphic comparing a generic international company vs. PayVia with a Myanmar flag.", copy_en: "We understand the local market, we speak your language, and our support team is right here when you need them. Choose a partner who gets it.", copy_my: "ကျွန်ုပ်တို့သည် ပြည်တွင်းဈေးကွက်ကို နားလည်ပြီး၊ သင်၏ဘာသာစကားကို ပြောဆိုကာ၊ သင်လိုအပ်သည့်အခါ ကျွန်ုပ်တို့၏ ပံ့ပိုးကူညီရေးအဖွဲ့က ဒီမှာရှိနေပါတယ်။ နားလည်တဲ့ partner ကို ရွေးချယ်ပါ။", cta: "Go Local", hashtags: "#SupportLocal #MadeInMyanmar #LocalTech #MyanmarBusinessCommunity" },
+                { day: 24, date: "Mon, July 21", pillar: "Educational", title: "How to Create a Product Combo in Your PayVia POS", visual: "Quick screen-recording video showing the steps.", copy_en: "Want to sell a \"Coffee + Cake\" combo? It's easy! Our new tutorial shows you how to bundle products to increase sales and offer value.", copy_my: "\"ကော်ဖီ + ကိတ်\" combo ရောင်းချင်ပါသလား? လွယ်ပါတယ်! ကျွန်ုပ်တို့၏ သင်ခန်းစာအသစ်က အရောင်းတိုးမြှင့်ရန်နှင့် တန်ဖိုးရှိစေရန် ကုန်ပစ္စည်းများကို ဘယ်လိုတွဲရောင်းရမလဲဆိုတာကို ပြသပေးပါတယ်။", cta: "Watch Tutorial", hashtags: "#POSTips #HowTo #PayViaTutorial #IncreaseSales" },
+                { day: 25, date: "Tue, July 22", pillar: "Product Showcase", title: "Integrate Seamlessly with the tools you already use.", visual: "Graphic showing the PayVia logo connecting to other logos (Xero, etc.)", copy_en: "PayVia plays well with others. We offer integrations with popular accounting and marketing software to create a truly connected business ecosystem.", copy_my: "PayVia သည် အခြားသူများနှင့် ကောင်းမွန်စွာ အလုပ်လုပ်ပါသည်။ ကျွန်ုပ်တို့သည် အမှန်တကယ်ချိတ်ဆက်ထားသော စီးပွားရေးဂေဟစနစ်တစ်ခုကို ဖန်တီးရန် လူကြိုက်များသော စာရင်းကိုင်နှင့် စျေးကွက်ရှာဖွေရေးဆော့ဖ်ဝဲလ်များနှင့် ချိတ်ဆက်မှုများကို ပေးပါသည်။", cta: "See Integrations", hashtags: "#Integrations #ConnectedBusiness #API #TechEcosystem" },
+                { day: 26, date: "Wed, July 23", pillar: "Engagement", title: "What new technology are you most excited to try?", visual: "Graphic with icons: AI, Drones, Advanced POS, etc.", copy_en: "Technology is changing fast! What's on your radar? Is it AI for marketing, or a better system for managing your daily operations?", copy_my: "နည်းပညာက အရှိန်အဟုန်ဖြင့် ပြောင်းလဲနေပါတယ်။ သင် ဘာကို စိတ်ဝင်စားပါသလဲ? စျေးကွက်ရှာဖွေရေးအတွက် AI လား၊ သို့မဟုတ် သင်၏ နေ့စဉ်လုပ်ငန်းဆောင်တာများကို စီမံခန့်ခွဲရန် ပိုမိုကောင်းမွန်သော စနစ်လား?", cta: "Tell Us Below", hashtags: "#FutureOfTech #TechTrends #BusinessInnovation #WhatsNext" },
+                { day: 27, date: "Thu, July 24", pillar: "Case Study", title: "Video Testimonial: Hear from \"Shan Yoe Yar\" Restaurant.", visual: "A 1-minute video interview with the restaurant owner.", copy_en: "Don't just take our word for it. Hear directly from the owner of Shan Yoe Yar about how PayVia streamlined their table management and billing.", copy_my: "ကျွန်ုပ်တို့၏ စကားကိုသာ မယုံပါနဲ့။ Shan Yoe Yar ၏ ပိုင်ရှင်ထံမှ PayVia က သူတို့၏ စားပွဲစီမံခန့်ခွဲမှုနှင့် ငွေတောင်းခံလွှာကို ဘယ်လိုလွယ်ကူချောမွေ့စေခဲ့တယ်ဆိုတာကို တိုက်ရိုက်နားထောင်ပါ။", cta: "Watch Now", hashtags: "#VideoTestimonial #HappyClient #RestaurantPOS #RealResults" },
+                { day: 28, date: "Fri, July 25", pillar: "Web/Software Showcase", title: "Is Your Website Mobile-First? It Needs to Be.", visual: "An animation showing a website looking bad on a phone, then transforming to look great.", copy_en: "Over 70% of web traffic in Myanmar is on mobile. If your website isn't optimized for phones, you're losing customers. We can fix that.", copy_my: "မြန်မာနိုင်ငံရှိ web traffic ၏ ၇၀% ကျော်သည် mobile တွင်ဖြစ်ပါသည်။ သင်၏ website သည် ဖုန်းများအတွက် optimize မလုပ်ထားပါက၊ သင် ဖောက်သည်များကို ဆုံးရှုံးနေပါပြီ။ ကျွန်ုပ်တို့က ပြင်ဆင်ပေးနိုင်ပါသည်။", cta: "Get a Site Audit", hashtags: "#MobileFirst #ResponsiveDesign #WebDev #UserExperience" },
+                { day: 29, date: "Sat, July 26", pillar: "Problem / Solution", title: "Employee Management Made Simple.", visual: "Screenshot of the employee permissions/time tracking feature.", copy_en: "Track work hours, manage staff permissions, and see performance reports for each employee. Control who can give discounts or access sensitive data.", copy_my: "အလုပ်ချိန်များကို ခြေရာခံပါ၊ ဝန်ထမ်းခွင့်ပြုချက်များကို စီမံခန့်ခွဲပါ၊ နှင့် ဝန်ထမ်းတစ်ဦးချင်းစီအတွက် စွမ်းဆောင်ရည် report များကို ကြည့်ရှုပါ။ လျှော့စျေးပေးနိုင်သူ သို့မဟုတ် အရေးကြီးဒေတာများကို ဝင်ရောက်ကြည့်ရှုနိုင်သူကို ထိန်းချုပ်ပါ။", cta: "Manage Your Team", hashtags: "#EmployeeManagement #HRTools #TeamPerformance #BusinessControl" },
+                { day: 30, date: "Sun, July 27", pillar: "Recap & Look Forward", title: "Powering Your Progress: One Month with PayVia!", visual: "A fast-paced video recap of the month's posts and key messages.", copy_en: "It's been a great month of sharing how we can help your business thrive! Are you ready to take the next step? Your future starts with a single click.", copy_my: "သင့်လုပ်ငန်းကို ဘယ်လိုတိုးတက်အောင် ကူညီနိုင်မလဲဆိုတာကို မျှဝေခဲ့တဲ့ ကောင်းမွန်တဲ့လတစ်လဖြစ်ခဲ့ပါတယ်။ နောက်တစ်ဆင့်တက်ဖို့ အသင့်ဖြစ်ပြီလား? သင်၏အနာဂတ်သည် တစ်ချက်နှိပ်ရုံဖြင့် စတင်သည်။", cta: "Book Your FREE Demo", hashtags: "#MonthInReview #BusinessGrowth #ReadyForSuccess #ContactUsToday" }
+            ];
+
+            const kpisContainer = document.getElementById('kpis');
+            const filtersContainer = document.getElementById('filters');
+            const postGrid = document.getElementById('post-grid');
+            const modal = document.getElementById('modal');
+            const modalContent = modal.querySelector('.modal-content');
+            const modalClose = document.getElementById('modal-close');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+            
+            let pillarChart = null;
+            let currentFilter = 'All';
+
+            const pillarColors = {
+                'Product Showcase': '#06b6d4',
+                'Problem / Solution': '#f97316',
+                'Trust & Authority': '#16a34a',
+                'Educational': '#8b5cf6',
+                'Engagement': '#ec4899',
+                'Behind the Scenes': '#64748b',
+                'Web/Software Showcase': '#3b82f6',
+                'Case Study': '#d946ef',
+                'Special Offer': '#ef4444',
+                'Recap & Look Forward': '#eab308'
+            };
+
+            function getPillarData() {
+                const pillarCounts = contentData.reduce((acc, post) => {
+                    acc[post.pillar] = (acc[post.pillar] || 0) + 1;
+                    return acc;
+                }, {});
+                return pillarCounts;
+            }
+
+            function updateKPIs(data) {
+                const pillarCounts = data.reduce((acc, post) => {
+                    acc[post.pillar] = (acc[post.pillar] || 0) + 1;
+                    return acc;
+                }, {});
+
+                kpisContainer.innerHTML = `
+                    <div class="bg-white p-4 rounded-xl shadow-sm text-center">
+                        <h3 class="text-2xl md:text-3xl font-bold text-cyan-600">${data.length}</h3>
+                        <p class="text-sm text-slate-500">Total Posts</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm text-center">
+                        <h3 class="text-2xl md:text-3xl font-bold text-orange-500">${pillarCounts['Problem / Solution'] || 0}</h3>
+                        <p class="text-sm text-slate-500">Problem/Solution</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm text-center">
+                        <h3 class="text-2xl md:text-3xl font-bold text-green-600">${pillarCounts['Trust & Authority'] || 0}</h3>
+                        <p class="text-sm text-slate-500">Trust Posts</p>
+                    </div>
+                     <div class="bg-white p-4 rounded-xl shadow-sm text-center">
+                        <h3 class="text-2xl md:text-3xl font-bold text-pink-500">${pillarCounts['Engagement'] || 0}</h3>
+                        <p class="text-sm text-slate-500">Engagement</p>
+                    </div>
+                `;
+            }
+
+            function setupFilters() {
+                const pillars = ['All', ...Object.keys(getPillarData())];
+                filtersContainer.innerHTML = pillars.map(pillar => `
+                    <button data-filter="${pillar}" class="filter-btn px-4 py-2 text-sm font-medium rounded-full transition-colors ${pillar === 'All' ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+                        ${pillar}
+                    </button>
+                `).join('');
+
+                document.querySelectorAll('.filter-btn').forEach(button => {
+                    button.addEventListener('click', () => {
+                        currentFilter = button.dataset.filter;
+                        document.querySelectorAll('.filter-btn').forEach(btn => {
+                            btn.classList.remove('bg-cyan-600', 'text-white');
+                            btn.classList.add('bg-slate-100', 'text-slate-700', 'hover:bg-slate-200');
+                        });
+                        button.classList.add('bg-cyan-600', 'text-white');
+                        button.classList.remove('bg-slate-100', 'text-slate-700', 'hover:bg-slate-200');
+                        renderContent();
+                    });
+                });
+            }
+
+            function renderChart() {
+                const pillarData = getPillarData();
+                const ctx = document.getElementById('pillarChart').getContext('2d');
+                if (pillarChart) {
+                    pillarChart.destroy();
+                }
+                pillarChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(pillarData),
+                        datasets: [{
+                            data: Object.values(pillarData),
+                            backgroundColor: Object.keys(pillarData).map(p => pillarColors[p] || '#cccccc'),
+                            borderColor: '#f8fafc',
+                            borderWidth: 4,
+                            hoverOffset: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '60%',
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 12,
+                                    padding: 15,
+                                    font: { size: 12 }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed !== null) {
+                                            label += context.parsed + ' posts';
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function renderContent() {
+                const filteredData = currentFilter === 'All'
+                    ? contentData
+                    : contentData.filter(post => post.pillar === currentFilter);
+                
+                postGrid.innerHTML = filteredData.map((post, index) => `
+                    <div class="post-card bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg p-4 cursor-pointer transition-all hover:shadow-md" data-index="${contentData.findIndex(p => p.day === post.day)}">
+                        <div class="flex justify-between items-start mb-2">
+                             <span class="text-xs font-semibold px-2 py-1 rounded-full" style="background-color:${pillarColors[post.pillar] || '#ccc'}30; color:${pillarColors[post.pillar] || '#64748b'};">${post.pillar}</span>
+                             <span class="text-sm font-bold text-slate-400">Day ${post.day}</span>
+                        </div>
+                        <h4 class="font-bold text-slate-800 mb-2">${post.title}</h4>
+                        <p class="text-sm text-slate-500">${post.date}</p>
+                    </div>
+                `).join('');
+                 updateKPIs(contentData);
+
+                document.querySelectorAll('.post-card').forEach(card => {
+                    card.addEventListener('click', () => showModal(card.dataset.index));
+                });
+            }
+
+            function showModal(index) {
+                const post = contentData[index];
+                modalTitle.textContent = `Day ${post.day}: ${post.pillar}`;
+                modalBody.innerHTML = `
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="font-bold text-lg mb-1">${post.title}</h4>
+                            <p class="text-sm text-slate-500">${post.date}</p>
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded-lg">
+                            <h5 class="font-semibold text-sm mb-1 text-slate-600">Visual Idea</h5>
+                            <p class="text-sm">${post.visual}</p>
+                        </div>
+                        <div>
+                            <h5 class="font-semibold text-sm mb-2 text-slate-600">Post Copy (English)</h5>
+                            <p class="text-sm p-3 bg-slate-50 rounded-lg whitespace-pre-wrap">${post.copy_en}</p>
+                        </div>
+                         <div>
+                            <h5 class="font-semibold text-sm mb-2 text-slate-600">Post Copy (Burmese)</h5>
+                            <p class="text-sm p-3 bg-slate-50 rounded-lg whitespace-pre-wrap">${post.copy_my}</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="p-3 bg-cyan-50 text-cyan-800 rounded-lg">
+                                <h5 class="font-semibold text-sm mb-1">Call to Action</h5>
+                                <p class="text-sm font-medium">${post.cta}</p>
+                            </div>
+                            <div class="p-3 bg-slate-50 rounded-lg">
+                                 <h5 class="font-semibold text-sm mb-1 text-slate-600">Hashtags</h5>
+                                <p class="text-xs text-slate-500 break-words">${post.hashtags}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+                modalContent.classList.remove('scale-95');
+            }
+
+            function hideModal() {
+                modal.classList.add('opacity-0', 'pointer-events-none');
+                modalContent.classList.add('scale-95');
+            }
+
+            modalClose.addEventListener('click', hideModal);
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    hideModal();
+                }
+            });
+            
+            document.addEventListener('keydown', (e) => {
+                if(e.key === 'Escape') {
+                    hideModal();
+                }
+            });
+
+            function init() {
+                setupFilters();
+                renderChart();
+                renderContent();
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
